@@ -1,3 +1,14 @@
+"""
+miniprompt.py
+an implementation of miniprompt
+
+developed in collaboration by: Avi Schwarzschild and Zhili Feng and Pratyush Maini in 2024
+"""
+import logging
+
+import prompt_optimization as prompt_opt
+
+
 def minimize_prompt(model, tokenizer, input_str, target_str, system_prompt, chat_template, device, optimization_args,
                     max_tokens=30, max_failure_limit=None):
     # Initialize based on target string length
