@@ -70,7 +70,7 @@ def main(cfg):
                          "topk": cfg.topk}
 
     solution = prompt_opt.minimize_prompt(model, tokenizer, input_str, target_str, system_prompt, chat_template, device,
-                                          optimization_args, max_tokens=cfg.max_tokens)
+                                          optimization_args, max_tokens=cfg.max_tokens, use_binary_search=cfg.use_binary_search )
     input_slice, target_slice, loss_slice, input_ids = (solution["input_slice"],
                                                         solution["target_slice"],
                                                         solution["loss_slice"],

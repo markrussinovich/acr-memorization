@@ -14,6 +14,7 @@ batch_size: 100
 chat_template:
   - ''
   - ''
+use_binary_search: true
 data_idx:
 dataset:
 discrete_optimizer: gcg

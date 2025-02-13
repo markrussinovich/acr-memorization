@@ -36,5 +36,5 @@ echo "Found $length items in JSON file"
 # Run the command for each index in the JSON array
 for idx in $(seq 0 $((length - 1))); do
     echo "Running iteration $idx..."
-    python prompt-minimization-main.py dataset=$json_file data_idx=$idx model_name="$model_name"
+    python prompt-minimization-main.py dataset=$json_file data_idx=$idx model_name="$model_name" 
 done

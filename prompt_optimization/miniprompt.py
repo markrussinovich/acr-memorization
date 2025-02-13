@@ -8,14 +8,15 @@ import logging
 
 import prompt_optimization as prompt_opt
 
+MAX_PROMPT_LENGTH_MULTIPLIER = 3
 
 def minimize_prompt(model, tokenizer, input_str, target_str, system_prompt, chat_template, device, optimization_args,
-                    max_tokens=30, max_failure_limit=None):
+                    max_tokens=30, max_failure_limit=None, use_binary_search=True):
     # Initialize based on target string length
     target_tokens = len(tokenizer.encode(target_str))
-    n_tokens_in_prompt = target_tokens
+    n_tokens_in_prompt = target_tokens * MAX_PROMPT_LENGTH_MULTIPLIER if use_binary_search else 5  # Start with 5 tokens for incremental
     running_min = 0
-    running_max = max_tokens if max_tokens != -1 else target_tokens * 5
+    running_max = max_tokens if max_tokens != -1 else target_tokens * MAX_PROMPT_LENGTH_MULTIPLIER
     max_failed = 0
     min_success = 0
     success = False
@@ -25,11 +26,11 @@ def minimize_prompt(model, tokenizer, input_str, target_str, system_prompt, chat
     
     # Set failure limit based on target length
     if max_failure_limit is None:
-        max_failure_limit = target_tokens * 2
+        max_failure_limit = target_tokens * MAX_PROMPT_LENGTH_MULTIPLIER
     
     # Set initial num_steps based on tokens/10 brackets
     base_steps = 200
-    num_brackets = (n_tokens_in_prompt // 10)
+    num_brackets = (n_tokens_in_prompt // 5)
     current_steps = int(base_steps * (1.2 ** num_brackets))
     optimization_args["num_steps"] = current_steps
 
@@ -89,42 +90,61 @@ def minimize_prompt(model, tokenizer, input_str, target_str, system_prompt, chat
             success = True
             best_prompt = solution["input_ids"]
             best_slices = (free_token_slice, input_slice, target_slice, loss_slice)
-            min_success = n_tokens_in_prompt
             
-            # Binary search: Try halfway between max_failed and current tokens
-            new_num_tokens = max_failed + (n_tokens_in_prompt - max_failed) // 2
-            logging.info(f"SUCCESS: Setting min_success={n_tokens_in_prompt}. Trying {new_num_tokens} next")
+            if use_binary_search:
+                min_success = n_tokens_in_prompt
+                # Binary search: Try halfway between max_failed and current tokens
+                new_num_tokens = max_failed + (n_tokens_in_prompt - max_failed) // 2
+                logging.info(f"SUCCESS: Setting min_success={n_tokens_in_prompt}. Trying {new_num_tokens} next")
+            else:
+                # For incremental search, try 5 tokens less
+                new_num_tokens = n_tokens_in_prompt - 5
+                logging.info(f"SUCCESS: Trying {new_num_tokens} next")
             
         else:
             logging.info(f"Target NOT acquired with {n_tokens_in_prompt} tokens in the prompt")
             max_failed = n_tokens_in_prompt
             
-            if n_tokens_in_prompt < min_success and min_success > 0:
-                # Binary search between max_failed and min_success
-                new_num_tokens = max_failed + (min_success - max_failed) // 2
-                logging.info(f"FAIL: Setting max_failed={n_tokens_in_prompt}. Trying {new_num_tokens} next")
+            if use_binary_search:
+                if n_tokens_in_prompt < min_success and min_success > 0:
+                    # Binary search between max_failed and min_success
+                    new_num_tokens = max_failed + (min_success - max_failed) // 2
+                    logging.info(f"FAIL: Setting max_failed={n_tokens_in_prompt}. Trying {new_num_tokens} next")
+                else:
+                    # Double tokens when no success found yet or current >= min_success
+                    new_num_tokens = n_tokens_in_prompt * 2
+                    logging.info(f"FAIL: Setting max_failed={n_tokens_in_prompt}. Doubling to {new_num_tokens}")
             else:
-                # Double tokens when no success found yet or current >= min_success
-                new_num_tokens = n_tokens_in_prompt * 2
-                logging.info(f"FAIL: Setting max_failed={n_tokens_in_prompt}. Doubling to {new_num_tokens}")
+                # For incremental search, add 5 tokens
+                new_num_tokens = n_tokens_in_prompt + 5
+                optimization_args["num_steps"] = int(optimization_args["num_steps"] * 1.2)
+                logging.info(f"FAIL: Trying {new_num_tokens} next with increased steps")
 
-        # Ensure we test all values when gap is small
-        gap = min_success - max_failed if min_success > 0 and max_failed > 0 else float('inf')
-        if gap > 1 and gap <= 3:
-            new_num_tokens = max_failed + 1
-            logging.info(f"Small gap detected ({gap}). Testing next value: {new_num_tokens}")
+        # For binary search only: ensure we test all values when gap is small
+        if use_binary_search:
+            gap = min_success - max_failed if min_success > 0 and max_failed > 0 else float('inf')
+            if gap > 1 and gap <= 3:
+                new_num_tokens = max_failed + 1
+                logging.info(f"Small gap detected ({gap}). Testing next value: {new_num_tokens}")
 
-        # Update num_steps for next iteration based on new token count
-        new_brackets = (new_num_tokens // 10)
-        current_steps = int(base_steps * (1.2 ** new_brackets))
-        optimization_args["num_steps"] = current_steps
+            # Update num_steps for next iteration based on new token count
+            new_brackets = (new_num_tokens // 5)
+            current_steps = int(base_steps * (1.2 ** new_brackets))
+            optimization_args["num_steps"] = current_steps
 
         # Check termination conditions
-        if (new_num_tokens >= running_max or
-            new_num_tokens <= running_min or
-            (min_success > 0 and max_failed > 0 and (min_success - max_failed) <= 1)):
-            done = True
+        if use_binary_search:
+            if (new_num_tokens >= running_max or
+                new_num_tokens <= running_min or
+                (min_success > 0 and max_failed > 0 and (min_success - max_failed) <= 1)):
+                done = True
         else:
+            # For incremental search, terminate if we go below 0 tokens after success
+            # or if we exceed running_max
+            if (success and new_num_tokens <= 0) or new_num_tokens >= running_max:
+                done = True
+            
+        if not done:
             n_tokens_in_prompt = new_num_tokens
 
     output = {
@@ -133,7 +153,7 @@ def minimize_prompt(model, tokenizer, input_str, target_str, system_prompt, chat
         "target_slice": best_slices[2] if best_slices[2] is not None else target_slice,
         "loss_slice": best_slices[3] if best_slices[3] is not None else loss_slice,
         "success": success,
-        "num_free_tokens": min_success if success else None,
+        "num_free_tokens": min_success if success and use_binary_search else (n_tokens_in_prompt if success else None),
         "input_ids": best_prompt,
     }
     return output
