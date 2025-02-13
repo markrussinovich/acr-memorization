@@ -1,16 +1,5 @@
-"""
-miniprompt.py
-an implementation of miniprompt
-
-developed in collaboration by: Avi Schwarzschild and Zhili Feng and Pratyush Maini in 2024
-"""
-import logging
-
-import prompt_optimization as prompt_opt
-
-
 def minimize_prompt(model, tokenizer, input_str, target_str, system_prompt, chat_template, device, optimization_args,
-                    max_tokens=30):
+                    max_tokens=30, max_failure_limit=None):
     # Initialize based on target string length
     target_tokens = len(tokenizer.encode(target_str))
     n_tokens_in_prompt = target_tokens
@@ -23,6 +12,10 @@ def minimize_prompt(model, tokenizer, input_str, target_str, system_prompt, chat
     done = False
     best_slices = (None, None, None, None)
     
+    # Set failure limit based on target length
+    if max_failure_limit is None:
+        max_failure_limit = target_tokens * 2
+    
     # Set initial num_steps based on tokens/10 brackets
     base_steps = 200
     num_brackets = (n_tokens_in_prompt // 10)
@@ -33,6 +26,12 @@ def minimize_prompt(model, tokenizer, input_str, target_str, system_prompt, chat
         logging.info("\n------------------------------------\n")
         logging.info(f"{n_tokens_in_prompt} tokens in the prompt (max_failed={max_failed}, min_success={min_success})")
         logging.info(f"Using {current_steps} optimization steps")
+        
+        # Check if we've exceeded the failure limit
+        if max_failed >= max_failure_limit:
+            logging.info(f"Early termination: max_failed ({max_failed}) exceeded limit ({max_failure_limit})")
+            done = True
+            continue
         
         # Ensure we don't exceed maximum tokens
         if n_tokens_in_prompt > running_max:
