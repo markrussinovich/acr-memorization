@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 outputs/
+obliviate/
 junk.py
 .DS_Store
 .idea

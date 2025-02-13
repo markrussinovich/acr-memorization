@@ -18,6 +18,10 @@ def load_target_str(dataset_name, idx, tokenizer):
         with open("datasets/famous_quotes.json", "r") as fh:
             quote_list = json.load(fh)
             target_str = quote_list[idx]
+    elif dataset_name == "obliviate":
+        with open("datasets/obliviate.json", "r") as fh:
+            quote_list = json.load(fh)
+            target_str = quote_list[idx]
     elif dataset_name == "wikipedia":
         with open("datasets/wikipedia.json", "r") as fh:
             quote_list = json.load(fh)
