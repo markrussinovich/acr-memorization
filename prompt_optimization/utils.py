@@ -35,8 +35,10 @@ def load_target_str(dataset_name, idx, tokenizer):
         target_ids = torch.randint(0, tokenizer.vocab_size, (100, 20))[idx, :len]
         target_str = tokenizer.decode(target_ids)
     else:
-        raise ValueError(f"args.dataset = {dataset_name}, but that option isn't implemented.")
-    return target_str
+        with open(f"datasets/{dataset_name}.json", "r") as fh:
+            quote_list = json.load(fh)
+            target_str = quote_list[idx]
+        return target_str
 
 
 def prep_text(input_str, target_str, tokenizer, system_prompt, chat_template, num_free_tokens, device):

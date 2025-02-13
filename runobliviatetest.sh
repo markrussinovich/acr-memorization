@@ -18,13 +18,13 @@ if ! command -v jq &> /dev/null; then
 fi
 
 # Check if JSON file exists
-if [ ! -f "$json_file" ]; then
+if [ ! -f datasets/"$json_file".json ]; then
     echo "Error: JSON file not found: $json_file"
     exit 1
 fi
 
 # Get the length of the JSON array
-length=$(jq 'length' "$json_file")
+length=$(jq 'length' datasets/"$json_file".json)
 
 if [ $? -ne 0 ]; then
     echo "Error: Failed to parse JSON file. Ensure it contains a valid array."
@@ -36,5 +36,5 @@ echo "Found $length items in JSON file"
 # Run the command for each index in the JSON array
 for idx in $(seq 0 $((length - 1))); do
     echo "Running iteration $idx..."
-    python prompt-minimization-main.py dataset=obliviate data_idx=$idx model_name="$model_name"
+    python prompt-minimization-main.py dataset=$json_file data_idx=$idx model_name="$model_name"
 done
