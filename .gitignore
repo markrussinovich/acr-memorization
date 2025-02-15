@@ -2,7 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
-outputs/
+outputs*/
 obliviate/
 junk.py
 .DS_Store
