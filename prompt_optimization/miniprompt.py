@@ -14,7 +14,7 @@ def minimize_prompt(model, tokenizer, input_str, target_str, system_prompt, chat
                     max_tokens=30, max_failure_limit=None, use_binary_search=True):
     # Initialize based on target string length
     target_tokens = len(tokenizer.encode(target_str))
-    n_tokens_in_prompt = target_tokens if use_binary_search else 5  # Start with 5 tokens for incremental
+    n_tokens_in_prompt = target_tokens * MAX_PROMPT_LENGTH_MULTIPLIER if use_binary_search else 5  # Start with 5 tokens for incremental
     running_min = 0
     running_max = max_tokens if max_tokens != -1 else target_tokens * MAX_PROMPT_LENGTH_MULTIPLIER
     max_failed = 0
